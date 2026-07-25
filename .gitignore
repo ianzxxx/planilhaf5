@@ -1,0 +1,16 @@
+node_modules
+dist
+out
+release
+.DS_Store
+*.log
+.env.local
+.env.*.local
+prisma/dev.db
+prisma/dev.db-journal
+*.db
+*.db-journal
+.vscode/*
+!.vscode/extensions.json
+GH_TOKEN
+.idea

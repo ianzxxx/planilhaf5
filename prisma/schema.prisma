@@ -1,0 +1,50 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  secretaria
+  gestor
+}
+
+model Usuario {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  senhaHash String
+  role      Role     @default(secretaria)
+  createdAt DateTime @default(now())
+}
+
+model Funcionario {
+  id                     String         @id @default(cuid())
+  nome                   String
+  cargo                  String?
+  horarioEntradaPadrao   String?
+  horarioSaidaPadrao     String?
+  ativo                  Boolean        @default(true)
+  createdAt              DateTime       @default(now())
+  registros              RegistroPonto[]
+}
+
+model RegistroPonto {
+  id               String      @id @default(cuid())
+  funcionarioId    String
+  funcionario      Funcionario @relation(fields: [funcionarioId], references: [id])
+  data             String
+  horaEntrada      String
+  horaSaida        String
+  horasTrabalhadas Float
+  observacao       String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@unique([funcionarioId, data])
+  @@index([data])
+  @@index([funcionarioId])
+}

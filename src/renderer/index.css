@@ -1,0 +1,83 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-secondary: #60a5fa;
+  --color-cta: #f97316;
+  --color-cta-hover: #ea580c;
+  --color-surface: #ffffff;
+  --color-bg: #f8fafc;
+  --color-text: #1e293b;
+  --color-muted: #475569;
+  --color-border: #e2e8f0;
+  --color-danger: #dc2626;
+  --color-success: #16a34a;
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: var(--color-bg);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.input-field {
+  @apply w-full rounded-lg border border-border bg-white px-3 py-2.5 text-base text-text transition-colors duration-200 placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/20;
+}
+
+.btn {
+  @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+.btn-primary {
+  @apply btn bg-primary text-white hover:bg-primary-hover;
+}
+
+.btn-cta {
+  @apply btn bg-cta text-white hover:bg-cta-hover;
+}
+
+.btn-secondary {
+  @apply btn border border-border bg-white text-text hover:bg-slate-50;
+}
+
+.btn-danger {
+  @apply btn bg-danger text-white hover:bg-red-700;
+}
+
+.card-panel {
+  @apply rounded-xl border border-border bg-surface p-5;
+}
+
+.label {
+  @apply mb-1.5 block text-sm font-medium text-text;
+}

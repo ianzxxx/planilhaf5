@@ -1,0 +1,76 @@
+name: Build Windows
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag do release para anexar o instalador (ex: v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Prisma env
+        shell: bash
+        run: echo 'DATABASE_URL="file:./prisma/ci.db"' >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Windows installer
+        run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload to GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.name }}"
+          mapfile -t FILES < <(find release -maxdepth 1 -type f \( \
+            -name '*.exe' -o -name '*.blockmap' -o -name 'latest.yml' \
+          \) | sort)
+
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "Nenhum artefato Windows encontrado em release/"
+            ls -la release || true
+            exit 1
+          fi
+
+          echo "Anexando ao release ${TAG}:"
+          printf ' - %s\n' "${FILES[@]}"
+
+          gh release upload "$TAG" "${FILES[@]}" \
+            --repo "${{ github.repository }}" \
+            --clobber

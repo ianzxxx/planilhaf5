@@ -12,16 +12,23 @@ Aplicativo desktop (Electron) de controle de ponto manual/semi-automático para 
 
 ## Desenvolvimento
 
+Se o download do Electron falhar (timeout no GitHub), use o espelho:
+
+```bash
+export ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
+npm install
+npm run dev
+```
+
+Sem isso:
+
 ```bash
 npm install
 npm run dev
 ```
 
-Login inicial (criado automaticamente na primeira abertura):
-
-- E-mail: `secretaria@escritorio.local`
-- Senha: `secretaria123`
-
+O app abre direto na tela de lançamento — sem login (uso local).
+Começa vazio: cadastre os funcionários em **Funcionários**.
 ## Build / instalação
 
 ```bash
@@ -42,8 +49,7 @@ Artefatos em `release/`.
 
 ```bash
 export GH_TOKEN=...
-export GH_OWNER=seu-usuario
-export GH_REPO=ponto-escritorio
+# owner/repo vêm de package.json (ianzxxx/planilhaf5)
 npm run release
 ```
 

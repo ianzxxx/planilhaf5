@@ -1,6 +1,5 @@
 import { ipcMain } from 'electron'
 import { getPrisma } from '../db'
-import { assertAuthenticated } from './auth'
 import type { ApiResult, Funcionario, FuncionarioInput } from '../../shared/types'
 
 function mapFuncionario(f: {
@@ -9,6 +8,7 @@ function mapFuncionario(f: {
   cargo: string | null
   horarioEntradaPadrao: string | null
   horarioSaidaPadrao: string | null
+  minutosAlmocoPadrao: number | null
   ativo: boolean
   createdAt: Date
 }): Funcionario {
@@ -18,9 +18,19 @@ function mapFuncionario(f: {
     cargo: f.cargo,
     horarioEntradaPadrao: f.horarioEntradaPadrao,
     horarioSaidaPadrao: f.horarioSaidaPadrao,
+    minutosAlmocoPadrao: f.minutosAlmocoPadrao,
     ativo: f.ativo,
     createdAt: f.createdAt.toISOString()
   }
+}
+
+function normalizarMinutosAlmoco(
+  valor: number | null | undefined
+): number | null {
+  if (valor === undefined) return 60
+  if (valor === null) return null
+  if (Number.isNaN(valor) || valor < 0) return 60
+  return Math.round(valor)
 }
 
 export function registerFuncionarioHandlers(): void {
@@ -28,7 +38,6 @@ export function registerFuncionarioHandlers(): void {
     'funcionarios:listar',
     async (_event, apenasAtivos = false): Promise<ApiResult<Funcionario[]>> => {
       try {
-        assertAuthenticated()
         const lista = await getPrisma().funcionario.findMany({
           where: apenasAtivos ? { ativo: true } : undefined,
           orderBy: { nome: 'asc' }
@@ -45,22 +54,16 @@ export function registerFuncionarioHandlers(): void {
     'funcionarios:criar',
     async (_event, input: FuncionarioInput): Promise<ApiResult<Funcionario>> => {
       try {
-        assertAuthenticated()
-        const nome = input.nome?.trim()
-        if (!nome) {
-          return { ok: false, error: 'Nome é obrigatório', code: 'VALIDATION' }
-        }
-
         const criado = await getPrisma().funcionario.create({
           data: {
-            nome,
+            nome: input.nome?.trim() || 'Sem nome',
             cargo: input.cargo?.trim() || null,
             horarioEntradaPadrao: input.horarioEntradaPadrao || null,
             horarioSaidaPadrao: input.horarioSaidaPadrao || null,
+            minutosAlmocoPadrao: normalizarMinutosAlmoco(input.minutosAlmocoPadrao),
             ativo: input.ativo ?? true
           }
         })
-
         return { ok: true, data: mapFuncionario(criado) }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Erro ao criar'
@@ -77,23 +80,17 @@ export function registerFuncionarioHandlers(): void {
       input: FuncionarioInput
     ): Promise<ApiResult<Funcionario>> => {
       try {
-        assertAuthenticated()
-        const nome = input.nome?.trim()
-        if (!nome) {
-          return { ok: false, error: 'Nome é obrigatório', code: 'VALIDATION' }
-        }
-
         const atualizado = await getPrisma().funcionario.update({
           where: { id },
           data: {
-            nome,
+            nome: input.nome?.trim() || 'Sem nome',
             cargo: input.cargo?.trim() || null,
             horarioEntradaPadrao: input.horarioEntradaPadrao || null,
             horarioSaidaPadrao: input.horarioSaidaPadrao || null,
+            minutosAlmocoPadrao: normalizarMinutosAlmoco(input.minutosAlmocoPadrao),
             ...(typeof input.ativo === 'boolean' ? { ativo: input.ativo } : {})
           }
         })
-
         return { ok: true, data: mapFuncionario(atualizado) }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Erro ao atualizar'
@@ -106,7 +103,6 @@ export function registerFuncionarioHandlers(): void {
     'funcionarios:inativar',
     async (_event, id: string): Promise<ApiResult<Funcionario>> => {
       try {
-        assertAuthenticated()
         const atualizado = await getPrisma().funcionario.update({
           where: { id },
           data: { ativo: false }
@@ -123,7 +119,6 @@ export function registerFuncionarioHandlers(): void {
     'funcionarios:reativar',
     async (_event, id: string): Promise<ApiResult<Funcionario>> => {
       try {
-        assertAuthenticated()
         const atualizado = await getPrisma().funcionario.update({
           where: { id },
           data: { ativo: true }

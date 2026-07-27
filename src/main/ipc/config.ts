@@ -4,13 +4,11 @@ import {
   getBackupConfig,
   setPastaBackup
 } from '../backup'
-import { assertAuthenticated } from './auth'
 import type { ApiResult, BackupConfig } from '../../shared/types'
 
 export function registerConfigHandlers(): void {
   ipcMain.handle('config:backup:get', async (): Promise<ApiResult<BackupConfig>> => {
     try {
-      assertAuthenticated()
       return { ok: true, data: getBackupConfig() }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erro ao ler config'
@@ -22,12 +20,16 @@ export function registerConfigHandlers(): void {
     'config:backup:escolherPasta',
     async (event): Promise<ApiResult<BackupConfig>> => {
       try {
-        assertAuthenticated()
         const win = BrowserWindow.fromWebContents(event.sender)
-        const result = await dialog.showOpenDialog(win ?? undefined, {
+        const options = {
           title: 'Escolher pasta de backup',
-          properties: ['openDirectory', 'createDirectory']
-        })
+          properties: ['openDirectory', 'createDirectory'] as Array<
+            'openDirectory' | 'createDirectory'
+          >
+        }
+        const result = win
+          ? await dialog.showOpenDialog(win, options)
+          : await dialog.showOpenDialog(options)
 
         if (result.canceled || !result.filePaths[0]) {
           return { ok: true, data: getBackupConfig() }
@@ -45,7 +47,6 @@ export function registerConfigHandlers(): void {
 
   ipcMain.handle('config:backup:remover', async (): Promise<ApiResult<BackupConfig>> => {
     try {
-      assertAuthenticated()
       setPastaBackup(null)
       return { ok: true, data: getBackupConfig() }
     } catch (error) {
@@ -58,7 +59,6 @@ export function registerConfigHandlers(): void {
     'config:backup:executar',
     async (): Promise<ApiResult<{ destino?: string; skipped?: boolean }>> => {
       try {
-        assertAuthenticated()
         const result = await executarBackup(true)
         if (!result.ok) {
           return { ok: false, error: result.error }

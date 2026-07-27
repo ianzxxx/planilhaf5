@@ -8,7 +8,7 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/SEU_USUARIO/ponto-escritorio.git"
+    "url": "https://github.com/ianzxxx/planilhaf5.git"
   },
   "scripts": {
     "dev": "electron-vite dev",
@@ -26,7 +26,6 @@
   },
   "dependencies": {
     "@prisma/client": "^6.12.0",
-    "bcryptjs": "^3.0.2",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.6.2",
     "lucide-react": "^0.525.0",
@@ -37,7 +36,6 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.11",
-    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^24.0.15",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
@@ -84,6 +82,10 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "resources/icon.png",
+        "to": "icon.png"
       }
     ],
     "asarUnpack": [
@@ -91,7 +93,9 @@
       "**/node_modules/@prisma/client/**/*",
       "**/node_modules/.prisma/**/*"
     ],
+    "icon": "resources/icon.png",
     "win": {
+      "icon": "resources/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -110,6 +114,7 @@
       "shortcutName": "Ponto Escritório"
     },
     "linux": {
+      "icon": "resources/icon.png",
       "target": [
         "AppImage",
         "deb"

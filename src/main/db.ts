@@ -2,7 +2,6 @@ import { app } from 'electron'
 import { PrismaClient } from '@prisma/client'
 import fs from 'fs'
 import path from 'path'
-import bcrypt from 'bcryptjs'
 
 let prisma: PrismaClient | null = null
 
@@ -32,33 +31,19 @@ export async function initDatabase(): Promise<void> {
 
   await prisma.$connect()
   await ensureSchema()
-  await seedIfEmpty()
 }
 
 async function ensureSchema(): Promise<void> {
   const client = getPrisma()
 
   await client.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS "Usuario" (
-      "id" TEXT NOT NULL PRIMARY KEY,
-      "email" TEXT NOT NULL,
-      "senhaHash" TEXT NOT NULL,
-      "role" TEXT NOT NULL DEFAULT 'secretaria',
-      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )
-  `)
-
-  await client.$executeRawUnsafe(`
-    CREATE UNIQUE INDEX IF NOT EXISTS "Usuario_email_key" ON "Usuario"("email")
-  `)
-
-  await client.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "Funcionario" (
       "id" TEXT NOT NULL PRIMARY KEY,
-      "nome" TEXT NOT NULL,
+      "nome" TEXT NOT NULL DEFAULT '',
       "cargo" TEXT,
       "horarioEntradaPadrao" TEXT,
       "horarioSaidaPadrao" TEXT,
+      "minutosAlmocoPadrao" INTEGER DEFAULT 60,
       "ativo" BOOLEAN NOT NULL DEFAULT 1,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
@@ -69,9 +54,12 @@ async function ensureSchema(): Promise<void> {
       "id" TEXT NOT NULL PRIMARY KEY,
       "funcionarioId" TEXT NOT NULL,
       "data" TEXT NOT NULL,
-      "horaEntrada" TEXT NOT NULL,
-      "horaSaida" TEXT NOT NULL,
-      "horasTrabalhadas" REAL NOT NULL,
+      "tipoDia" TEXT NOT NULL DEFAULT 'trabalho',
+      "horaEntrada" TEXT,
+      "horaSaidaAlmoco" TEXT,
+      "horaVoltaAlmoco" TEXT,
+      "horaSaida" TEXT,
+      "horasTrabalhadas" REAL,
       "observacao" TEXT,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL,
@@ -81,52 +69,153 @@ async function ensureSchema(): Promise<void> {
     )
   `)
 
-  await client.$executeRawUnsafe(`
-    CREATE UNIQUE INDEX IF NOT EXISTS "RegistroPonto_funcionarioId_data_key"
-      ON "RegistroPonto"("funcionarioId", "data")
-  `)
+  await migrarColunas(client)
+
+  await client.$executeRawUnsafe(
+    `DROP INDEX IF EXISTS "RegistroPonto_funcionarioId_data_key"`
+  )
 
   await client.$executeRawUnsafe(`
     CREATE INDEX IF NOT EXISTS "RegistroPonto_data_idx" ON "RegistroPonto"("data")
   `)
-
   await client.$executeRawUnsafe(`
     CREATE INDEX IF NOT EXISTS "RegistroPonto_funcionarioId_idx"
       ON "RegistroPonto"("funcionarioId")
   `)
+  await client.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "RegistroPonto_funcionarioId_data_idx"
+      ON "RegistroPonto"("funcionarioId", "data")
+  `)
 }
 
-async function seedIfEmpty(): Promise<void> {
-  const client = getPrisma()
-  const count = await client.usuario.count()
-  if (count > 0) return
+async function colunaExiste(
+  client: PrismaClient,
+  tabela: string,
+  coluna: string
+): Promise<boolean> {
+  const cols = (await client.$queryRawUnsafe(
+    `PRAGMA table_info("${tabela}")`
+  )) as Array<{ name: string }>
+  return cols.some((c) => c.name === coluna)
+}
 
-  const senhaHash = await bcrypt.hash('secretaria123', 10)
+async function migrarColunas(client: PrismaClient): Promise<void> {
+  if (!(await colunaExiste(client, 'Funcionario', 'minutosAlmocoPadrao'))) {
+    await client.$executeRawUnsafe(
+      `ALTER TABLE "Funcionario" ADD COLUMN "minutosAlmocoPadrao" INTEGER DEFAULT 60`
+    )
+  }
 
-  await client.usuario.create({
-    data: {
-      email: 'secretaria@escritorio.local',
-      senhaHash,
-      role: 'secretaria'
-    }
+  if (!(await colunaExiste(client, 'RegistroPonto', 'horaSaidaAlmoco'))) {
+    await client.$executeRawUnsafe(
+      `ALTER TABLE "RegistroPonto" ADD COLUMN "horaSaidaAlmoco" TEXT`
+    )
+  }
+
+  if (!(await colunaExiste(client, 'RegistroPonto', 'horaVoltaAlmoco'))) {
+    await client.$executeRawUnsafe(
+      `ALTER TABLE "RegistroPonto" ADD COLUMN "horaVoltaAlmoco" TEXT`
+    )
+  }
+
+  if (!(await colunaExiste(client, 'RegistroPonto', 'tipoDia'))) {
+    await client.$executeRawUnsafe(
+      `ALTER TABLE "RegistroPonto" ADD COLUMN "tipoDia" TEXT NOT NULL DEFAULT 'trabalho'`
+    )
+  }
+
+  await client.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "RegistroPonto_tipoDia_idx" ON "RegistroPonto"("tipoDia")
+  `)
+
+  // Bancos antigos com horários/horas NOT NULL: relaxar via recriação.
+  // Prisma/SQLite devolve notnull como BigInt — comparar com == ou Number().
+  const cols = (await client.$queryRawUnsafe(
+    `PRAGMA table_info("RegistroPonto")`
+  )) as Array<{ name: string; notnull: number | bigint }>
+
+  const colunasOpcionais = [
+    'horaEntrada',
+    'horaSaida',
+    'horaSaidaAlmoco',
+    'horaVoltaAlmoco',
+    'horasTrabalhadas',
+    'observacao'
+  ]
+  const precisaRelaxar = colunasOpcionais.some((nome) => {
+    const col = cols.find((c) => c.name === nome)
+    return col != null && Number(col.notnull) === 1
   })
 
-  await client.funcionario.createMany({
-    data: [
-      {
-        nome: 'Ana Souza',
-        cargo: 'Assistente administrativa',
-        horarioEntradaPadrao: '08:00',
-        horarioSaidaPadrao: '17:00'
-      },
-      {
-        nome: 'Bruno Lima',
-        cargo: 'Estagiário',
-        horarioEntradaPadrao: '09:00',
-        horarioSaidaPadrao: '15:00'
-      }
-    ]
-  })
+  if (precisaRelaxar) {
+    const temAlmoco = cols.some((c) => c.name === 'horaSaidaAlmoco')
+    const temVolta = cols.some((c) => c.name === 'horaVoltaAlmoco')
+    const temTipoDia = cols.some((c) => c.name === 'tipoDia')
+
+    await client.$executeRawUnsafe(`PRAGMA foreign_keys = OFF`)
+    await client.$executeRawUnsafe(`
+      CREATE TABLE "RegistroPonto_new" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "funcionarioId" TEXT NOT NULL,
+        "data" TEXT NOT NULL,
+        "tipoDia" TEXT NOT NULL DEFAULT 'trabalho',
+        "horaEntrada" TEXT,
+        "horaSaidaAlmoco" TEXT,
+        "horaVoltaAlmoco" TEXT,
+        "horaSaida" TEXT,
+        "horasTrabalhadas" REAL,
+        "observacao" TEXT,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" DATETIME NOT NULL,
+        CONSTRAINT "RegistroPonto_funcionarioId_fkey"
+          FOREIGN KEY ("funcionarioId") REFERENCES "Funcionario" ("id")
+          ON DELETE RESTRICT ON UPDATE CASCADE
+      )
+    `)
+
+    await client.$executeRawUnsafe(`
+      INSERT INTO "RegistroPonto_new" (
+        "id", "funcionarioId", "data", "tipoDia",
+        "horaEntrada", "horaSaidaAlmoco", "horaVoltaAlmoco", "horaSaida",
+        "horasTrabalhadas", "observacao", "createdAt", "updatedAt"
+      )
+      SELECT
+        "id",
+        "funcionarioId",
+        "data",
+        ${temTipoDia ? `"tipoDia"` : `'trabalho'`},
+        "horaEntrada",
+        ${temAlmoco ? `"horaSaidaAlmoco"` : 'NULL'},
+        ${temVolta ? `"horaVoltaAlmoco"` : 'NULL'},
+        "horaSaida",
+        "horasTrabalhadas",
+        "observacao",
+        "createdAt",
+        "updatedAt"
+      FROM "RegistroPonto"
+    `)
+
+    await client.$executeRawUnsafe(`DROP TABLE "RegistroPonto"`)
+    await client.$executeRawUnsafe(
+      `ALTER TABLE "RegistroPonto_new" RENAME TO "RegistroPonto"`
+    )
+    await client.$executeRawUnsafe(`PRAGMA foreign_keys = ON`)
+
+    await client.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "RegistroPonto_data_idx" ON "RegistroPonto"("data")
+    `)
+    await client.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "RegistroPonto_funcionarioId_idx"
+        ON "RegistroPonto"("funcionarioId")
+    `)
+    await client.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "RegistroPonto_funcionarioId_data_idx"
+        ON "RegistroPonto"("funcionarioId", "data")
+    `)
+    await client.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "RegistroPonto_tipoDia_idx" ON "RegistroPonto"("tipoDia")
+    `)
+  }
 }
 
 export async function closeDatabase(): Promise<void> {

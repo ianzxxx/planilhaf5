@@ -5,9 +5,11 @@ interface ConfirmDialogProps {
   title: string
   description: string
   confirmLabel?: string
+  secondaryLabel?: string
   cancelLabel?: string
   loading?: boolean
   onConfirm: () => void
+  onSecondary?: () => void
   onCancel: () => void
 }
 
@@ -16,9 +18,11 @@ export default function ConfirmDialog({
   title,
   description,
   confirmLabel = 'Confirmar',
+  secondaryLabel,
   cancelLabel = 'Cancelar',
   loading = false,
   onConfirm,
+  onSecondary,
   onCancel
 }: ConfirmDialogProps) {
   if (!open) return null
@@ -42,7 +46,7 @@ export default function ConfirmDialog({
             <p className="mt-1 text-sm text-muted">{description}</p>
           </div>
         </div>
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <button
             type="button"
             className="btn-secondary"
@@ -51,6 +55,16 @@ export default function ConfirmDialog({
           >
             {cancelLabel}
           </button>
+          {secondaryLabel && onSecondary ? (
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={onSecondary}
+              disabled={loading}
+            >
+              {secondaryLabel}
+            </button>
+          ) : null}
           <button
             type="button"
             className="btn-cta"

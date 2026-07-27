@@ -8,28 +8,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  secretaria
-  gestor
-}
-
-model Usuario {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  senhaHash String
-  role      Role     @default(secretaria)
-  createdAt DateTime @default(now())
-}
-
 model Funcionario {
-  id                     String         @id @default(cuid())
-  nome                   String
-  cargo                  String?
-  horarioEntradaPadrao   String?
-  horarioSaidaPadrao     String?
-  ativo                  Boolean        @default(true)
-  createdAt              DateTime       @default(now())
-  registros              RegistroPonto[]
+  id                   String          @id @default(cuid())
+  nome                 String          @default("")
+  cargo                String?
+  horarioEntradaPadrao String?
+  horarioSaidaPadrao   String?
+  minutosAlmocoPadrao  Int?            @default(60)
+  ativo                Boolean         @default(true)
+  createdAt            DateTime        @default(now())
+  registros            RegistroPonto[]
 }
 
 model RegistroPonto {
@@ -37,14 +25,19 @@ model RegistroPonto {
   funcionarioId    String
   funcionario      Funcionario @relation(fields: [funcionarioId], references: [id])
   data             String
-  horaEntrada      String
-  horaSaida        String
-  horasTrabalhadas Float
+  /** trabalho | falta | folga | atestado */
+  tipoDia          String      @default("trabalho")
+  horaEntrada      String?
+  horaSaidaAlmoco  String?
+  horaVoltaAlmoco  String?
+  horaSaida        String?
+  horasTrabalhadas Float?
   observacao       String?
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 
-  @@unique([funcionarioId, data])
   @@index([data])
   @@index([funcionarioId])
+  @@index([funcionarioId, data])
+  @@index([tipoDia])
 }

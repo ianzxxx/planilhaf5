@@ -5,21 +5,17 @@ import type {
   ExportResult,
   Funcionario,
   FuncionarioInput,
+  MarcarBatidaInput,
   PontosFiltro,
+  RegistrarAusenciaInput,
   RegistroPonto,
   RegistroPontoInput,
   RegistroPontoUpdate,
-  UsuarioSessao
+  RelatorioMensal,
+  RelatorioMensalFiltro
 } from '../shared/types'
 
 const api = {
-  auth: {
-    login: (email: string, senha: string): Promise<ApiResult<UsuarioSessao>> =>
-      ipcRenderer.invoke('auth:login', email, senha),
-    logout: (): Promise<ApiResult> => ipcRenderer.invoke('auth:logout'),
-    sessao: (): Promise<ApiResult<UsuarioSessao | null>> =>
-      ipcRenderer.invoke('auth:sessao')
-  },
   funcionarios: {
     listar: (apenasAtivos = false): Promise<ApiResult<Funcionario[]>> =>
       ipcRenderer.invoke('funcionarios:listar', apenasAtivos),
@@ -38,11 +34,27 @@ const api = {
   pontos: {
     listar: (filtro?: PontosFiltro): Promise<ApiResult<RegistroPonto[]>> =>
       ipcRenderer.invoke('pontos:listar', filtro),
+    listarDoDia: (data?: string): Promise<ApiResult<RegistroPonto[]>> =>
+      ipcRenderer.invoke('pontos:listarDoDia', data),
     buscarPorDia: (
       funcionarioId: string,
       data: string
     ): Promise<ApiResult<RegistroPonto | null>> =>
       ipcRenderer.invoke('pontos:buscarPorDia', funcionarioId, data),
+    marcarBatida: (
+      input: MarcarBatidaInput
+    ): Promise<ApiResult<RegistroPonto>> =>
+      ipcRenderer.invoke('pontos:marcarBatida', input),
+    registrarAusencia: (
+      input: RegistrarAusenciaInput
+    ): Promise<ApiResult<RegistroPonto>> =>
+      ipcRenderer.invoke('pontos:registrarAusencia', input),
+    excluir: (id: string): Promise<ApiResult> =>
+      ipcRenderer.invoke('pontos:excluir', id),
+    relatorioMensal: (
+      filtro: RelatorioMensalFiltro
+    ): Promise<ApiResult<RelatorioMensal>> =>
+      ipcRenderer.invoke('pontos:relatorioMensal', filtro),
     salvar: (input: RegistroPontoInput): Promise<ApiResult<RegistroPonto>> =>
       ipcRenderer.invoke('pontos:salvar', input),
     atualizar: (
@@ -53,7 +65,11 @@ const api = {
   },
   exportar: {
     xlsx: (registros: RegistroPonto[]): Promise<ApiResult<ExportResult>> =>
-      ipcRenderer.invoke('export:xlsx', registros)
+      ipcRenderer.invoke('export:xlsx', registros),
+    relatorioMensal: (
+      relatorio: RelatorioMensal
+    ): Promise<ApiResult<ExportResult>> =>
+      ipcRenderer.invoke('export:relatorioMensal', relatorio)
   },
   config: {
     getBackup: (): Promise<ApiResult<BackupConfig>> =>

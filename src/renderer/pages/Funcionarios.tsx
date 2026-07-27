@@ -1,13 +1,16 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Pencil, UserMinus, UserPlus, UserCheck } from 'lucide-react'
 import type { Funcionario, FuncionarioInput } from '@shared/types'
 import { useToast } from '../components/Toast'
+import { useSyncFuncionarios } from '../hooks/useSync'
+import { notifyFuncionariosChanged } from '../lib/sync'
 
 const emptyForm: FuncionarioInput = {
   nome: '',
   cargo: '',
   horarioEntradaPadrao: '',
-  horarioSaidaPadrao: ''
+  horarioSaidaPadrao: '',
+  minutosAlmocoPadrao: 60
 }
 
 export default function FuncionariosPage() {
@@ -18,14 +21,16 @@ export default function FuncionariosPage() {
   const [mostrarInativos, setMostrarInativos] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  async function carregar() {
+  const carregar = useCallback(async () => {
     const result = await window.api.funcionarios.listar(false)
     if (result.ok && result.data) setLista(result.data)
-  }
+  }, [])
 
   useEffect(() => {
-    carregar()
-  }, [])
+    void carregar()
+  }, [carregar])
+
+  useSyncFuncionarios(carregar)
 
   const visiveis = lista.filter((f) => (mostrarInativos ? true : f.ativo))
 
@@ -35,7 +40,8 @@ export default function FuncionariosPage() {
       nome: f.nome,
       cargo: f.cargo ?? '',
       horarioEntradaPadrao: f.horarioEntradaPadrao ?? '',
-      horarioSaidaPadrao: f.horarioSaidaPadrao ?? ''
+      horarioSaidaPadrao: f.horarioSaidaPadrao ?? '',
+      minutosAlmocoPadrao: f.minutosAlmocoPadrao ?? 60
     })
   }
 
@@ -49,10 +55,14 @@ export default function FuncionariosPage() {
     setLoading(true)
     try {
       const payload: FuncionarioInput = {
-        nome: form.nome.trim(),
+        nome: form.nome?.trim() || '',
         cargo: form.cargo || null,
         horarioEntradaPadrao: form.horarioEntradaPadrao || null,
-        horarioSaidaPadrao: form.horarioSaidaPadrao || null
+        horarioSaidaPadrao: form.horarioSaidaPadrao || null,
+        minutosAlmocoPadrao:
+          form.minutosAlmocoPadrao === null || form.minutosAlmocoPadrao === undefined
+            ? 60
+            : Number(form.minutosAlmocoPadrao)
       }
 
       const result = editandoId
@@ -66,6 +76,7 @@ export default function FuncionariosPage() {
 
       toast(editandoId ? 'Funcionário atualizado' : 'Funcionário cadastrado')
       cancelEdit()
+      notifyFuncionariosChanged()
       await carregar()
     } finally {
       setLoading(false)
@@ -83,6 +94,7 @@ export default function FuncionariosPage() {
     }
 
     toast(f.ativo ? 'Funcionário inativado' : 'Funcionário reativado')
+    notifyFuncionariosChanged()
     await carregar()
   }
 
@@ -91,7 +103,7 @@ export default function FuncionariosPage() {
       <div>
         <h1 className="text-2xl font-bold text-text">Funcionários</h1>
         <p className="text-sm text-muted">
-          Cadastre nomes e horários padrão para agilizar o lançamento diário.
+          Cadastre nomes, horários padrão e duração do almoço para o cálculo correto.
         </p>
       </div>
 
@@ -104,11 +116,10 @@ export default function FuncionariosPage() {
 
         <div className="md:col-span-2">
           <label htmlFor="nome" className="label">
-            Nome completo
+            Nome completo (opcional)
           </label>
           <input
             id="nome"
-            required
             className="input-field"
             value={form.nome ?? ''}
             onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))}
@@ -130,7 +141,7 @@ export default function FuncionariosPage() {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="entradaPadrao" className="label">
-              Entrada padrão
+              Entrada padrão (opcional)
             </label>
             <input
               id="entradaPadrao"
@@ -144,7 +155,7 @@ export default function FuncionariosPage() {
           </div>
           <div>
             <label htmlFor="saidaPadrao" className="label">
-              Saída padrão
+              Saída padrão (opcional)
             </label>
             <input
               id="saidaPadrao"
@@ -156,6 +167,31 @@ export default function FuncionariosPage() {
               }
             />
           </div>
+        </div>
+
+        <div>
+          <label htmlFor="almoco" className="label">
+            Almoço padrão (minutos)
+          </label>
+          <input
+            id="almoco"
+            type="number"
+            min={0}
+            step={15}
+            className="input-field"
+            value={form.minutosAlmocoPadrao ?? 60}
+            onChange={(e) =>
+              setForm((p) => ({
+                ...p,
+                minutosAlmocoPadrao: e.target.value === '' ? 0 : Number(e.target.value)
+              }))
+            }
+          />
+          <p className="mt-1.5 text-xs text-muted">
+            Usado só quando o dia fecha com entrada+saída sem batidas de almoço
+            (ex.: 60 = 1 hora). Com as 4 batidas, o almoço real é excluído
+            automaticamente.
+          </p>
         </div>
 
         <div className="flex flex-wrap gap-2 md:col-span-2">
@@ -199,7 +235,9 @@ export default function FuncionariosPage() {
             <tbody>
               {visiveis.map((f) => (
                 <tr key={f.id} className="border-b border-border/70">
-                  <td className="px-2 py-3 font-medium text-text">{f.nome}</td>
+                  <td className="px-2 py-3 font-medium text-text">
+                    {f.nome || 'Sem nome'}
+                  </td>
                   <td className="px-2 py-3 text-muted">{f.cargo || '—'}</td>
                   <td className="px-2 py-3 text-muted">
                     {f.horarioEntradaPadrao && f.horarioSaidaPadrao
